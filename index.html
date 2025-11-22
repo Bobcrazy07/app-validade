@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt-br" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Validade</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+
+    <style>
+        /* !important é uma "bomba nuclear". 
+         Ele diz ao navegador: "USE ESTA COR, NÃO IMPORTA O QUE MAIS NINGUÉM DISSE."
+        */
+
+        /* O botão Salvar/Atualizar (verde) */
+        #btnSubmit {
+            background-color: #4CAF50 !important; /* Verde */
+            border-color: #4CAF50 !important;
+            color: #ffffff !important; /* Texto branco */
+        }
+        #btnSubmit:hover {
+            background-color: #45a049 !important; /* Verde escuro */
+            border-color: #45a049 !important;
+        }
+
+        /* O botão Editar (amarelo) */
+        .btn-editar {
+            background-color: #ffa000 !important; /* Amarelo */
+            border-color: #ffa000 !important;
+            color: #000000 !important; /* Texto preto para legibilidade */
+            margin-right: 0.5rem;
+        }
+        .btn-editar:hover {
+            background-color: #e69100 !important;
+            border-color: #e69100 !important;
+        }
+        
+        /* O botão Deletar (vermelho) */
+        .btn-deletar {
+            background-color: #d32f2f !important; /* Vermelho */
+            border-color: #d32f2f !important;
+        }
+        .btn-deletar:hover {
+            background-color: #b71c1c !important; /* Vermelho escuro */
+            border-color: #b71c1c !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <h1>Controle de Validade</h1>
+
+        <h2>Cadastrar Produto</h2>
+        
+       <form id="formCadastro">
+    <input type="text" id="nomeProduto" placeholder="Nome do Produto" required>
+    <input type="date" id="dataValidade" required>
+    
+    <div class="grid">
+        <button type="submit" id="btnSubmit">Salvar</button>
+        
+        <button type="button" class="secondary" id="btnLimpar">Limpar</button>
+    </div>
+</form>
+
+        <h2>Produtos Cadastrados</h2>
+        <ul id="listaProdutos">
+            <li>Carregando...</li>
+        </ul>
+    </div>
+
+    <script>
+        // O endereço da nossa API que está rodando
+        const API_URL = 'http://localhost:3000/produtos';
+
+        // Pega os elementos do HTML pelo ID
+        const form = document.getElementById('formCadastro');
+        const lista = document.getElementById('listaProdutos');
+        const btnSubmit = document.getElementById('btnSubmit');
+        const btnLimpar = document.getElementById('btnLimpar');
+        btnLimpar.addEventListener('click', limparFormulario);
+
+        let idEmEdicao = null;
+        // --- FUNÇÃO para Limpar o Formulário (Cancelar Edição) ---
+            function limparFormulario() {
+            idEmEdicao = null; // 1. Volta para o modo "Criação"
+            btnSubmit.innerText = 'Salvar'; // 2. Reseta o texto do botão "Atualizar"
+            form.reset(); // 3. Limpa os campos (nome e data)
+}
+        // --- FUNÇÃO 1: Listar os Produtos (O MÉTODO NOVO E ROBUSTO) ---
+        async function carregarProdutos() {
+            lista.innerHTML = '<li>Carregando...</li>';
+
+            try {
+                // 1. Chama a API (GET /produtos)
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('Falha ao carregar');
+                const produtos = await response.json();
+
+                lista.innerHTML = ''; // Limpa o "carregando"
+
+                // 2. Cria os elementos um por um (DOM)
+                produtos.forEach(produto => {
+                    // ---- PREPARA OS DADOS ----
+                    const data = new Date(produto.data_validade);
+                    const dataFormatada = data.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+                    // ---- CRIA O <li> (Item da lista) ----
+                    const item = document.createElement('li');
+
+                    // ---- CRIA O <span> (Texto) ----
+                    const spanTexto = document.createElement('span');
+                    spanTexto.innerHTML = `
+                        <strong>${produto.nome}</strong>
+                        (Validade: ${dataFormatada})
+                    `;
+                    
+                    // ---- CRIA A <div> (Para os botões) ----
+                    const divBotoes = document.createElement('div');
+
+                    // ---- CRIA O BOTÃO EDITAR ----
+                    const btnEditar = document.createElement('button');
+                    btnEditar.className = 'btn-editar';
+                    btnEditar.innerText = 'Editar';
+                    btnEditar.style.marginRight = '1rem'; // Adiciona uma margem à direita
+                    // A MÁGICA: Conecta o clique à função, sem aspas!
+                    btnEditar.addEventListener('click', () => {
+                        prepararEdicao(produto.id, produto.nome, produto.data_validade);
+                    });
+
+                    // ---- CRIA O BOTÃO DELETAR ----
+                    const btnDeletar = document.createElement('button');
+                    btnDeletar.className = 'btn-deletar';
+                    btnDeletar.innerText = 'Deletar';
+                    // A MÁGICA: Conecta o clique à função, sem aspas!
+                    btnDeletar.addEventListener('click', () => {
+                        deletarProduto(produto.id);
+                    });
+
+                    // ---- MONTA TUDO ----
+                    divBotoes.appendChild(btnEditar);   // Coloca o botão Editar na div
+                    divBotoes.appendChild(btnDeletar);  // Coloca o botão Deletar na div
+                    
+                    item.appendChild(spanTexto);        // Coloca o texto no <li>
+                    item.appendChild(divBotoes);        // Coloca a div dos botões no <li>
+
+                    lista.appendChild(item);            // Coloca o <li> na lista <ul>
+                });
+
+            } catch (error) {
+                lista.innerHTML = '<li>Erro ao carregar produtos.</li>';
+                console.error('Erro no GET:', error);
+            }
+        }
+
+        // --- FUNÇÃO para preparar o formulário para edição ---
+        function prepararEdicao(id, nome, data) {
+            
+            // 1. Guarda o ID que estamos editando
+            idEmEdicao = id;
+
+            // 2. Coloca os dados do item no formulário
+            document.getElementById('nomeProduto').value = nome;
+            document.getElementById('dataValidade').value = data; // O formato AAAA-MM-DD
+
+            // 3. Muda o texto do botão
+            btnSubmit.innerText = 'Atualizar';
+            
+            // Opcional: Rola a tela para o topo
+            window.scrollTo(0, 0);
+        }
+
+        
+        // --- FUNÇÃO 2: Cadastrar um Produto (POST) ---
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault(); // Impede o formulário de recarregar a página
+
+            // Pega os valores dos inputs
+            const nome = document.getElementById('nomeProduto').value;
+            const data = document.getElementById('dataValidade').value;
+
+            // VERIFICA SE ESTAMOS EDITANDO OU CRIANDO
+            if (idEmEdicao) {
+                // ---- MODO ATUALIZAR (PUT) ----
+                try {
+                    const response = await fetch(`${API_URL}/${idEmEdicao}`, { // Passa o ID na URL
+                        method: 'PUT', // Método PUT
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            nome: nome,
+                            data_validade: data
+                        })
+                    });
+                    if (!response.ok) throw new Error('Erro ao atualizar');
+                    
+                } catch (error) {
+                    alert('Erro ao atualizar produto.');
+                    console.error('Erro no PUT:', error);
+                }
+
+            } else {
+                // ---- MODO SALVAR (POST) ----
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            nome: nome,
+                            data_validade: data
+                        })
+                    });
+                    if (!response.ok) throw new Error('Erro ao cadastrar');
+                } catch (error) {
+                    alert('Erro ao cadastrar produto.');
+                    console.error('Erro no POST:', error);
+                }
+            }
+            
+            // --- LIMPEZA (Roda para ambos os casos) ---
+            form.reset();         // Limpa o formulário
+            idEmEdicao = null;    // Volta para o modo "Criação"
+            btnSubmit.innerText = 'Salvar'; // Volta o texto do botão
+            carregarProdutos();   // Recarrega a lista
+        });
+
+        // --- NOVA FUNÇÃO 3: Deletar um Produto (DELETE) ---
+        async function deletarProduto(id) {
+            
+            // Pergunta ao usuário se ele tem certeza
+            if (!confirm('Tem certeza que deseja excluir este produto?')) {
+                return; // Se o usuário clicar "Cancelar", a função para aqui
+            }
+
+            try {
+                // Chama a API, passando o ID na URL
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: 'DELETE', // O método é a chave!
+                });
+
+                if (!response.ok) {
+                    throw new Error('Erro ao deletar produto. Status: ' + response.status);
+                }
+                
+                // Se deu certo (status 204)...
+                console.log('Produto deletado, atualizando lista...');
+                carregarProdutos();
+
+            } catch (error) {
+                alert('Erro ao deletar produto. Verifique o console.');
+                console.error('Erro no DELETE:', error);
+            }
+        }
+
+        // --- INICIALIZAÇÃO ---
+        carregarProdutos();
+
+    </script>
+</body>
+</html>
