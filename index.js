@@ -101,12 +101,6 @@ app.get('/send-alerts', async (req, res) => {
 });
 
 
-// Iniciar o servidor
-app.listen(port, () => {
-    console.log(`Servidor rodando em http://localhost:${port}`);
-    console.log('Conectado ao Supabase!');
-    console.log('CORS habilitado.');
-});
 // --- NOSSAS ROTAS (ENDPOINTS) ---
 
 // [LER] GET /produtos - Listar todos os produtos
